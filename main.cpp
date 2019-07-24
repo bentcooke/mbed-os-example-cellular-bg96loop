@@ -20,6 +20,7 @@
 #include "CellularDevice.h"
 #include "UDPSocket.h"
 #include "CellularLog.h"
+#include "stats_report.h"
 
 #define UDP 0
 #define TCP 1
@@ -30,6 +31,8 @@
 
 NetworkInterface *iface;
 
+DigitalOut BG96_RESET(P1_5, 1);
+DigitalOut BG96_PWRKEY(P1_6, 0);
 // Echo server hostname
 const char *host_name = MBED_CONF_APP_ECHO_SERVER_HOSTNAME;
 
@@ -237,6 +240,18 @@ nsapi_error_t test_send_recv()
 
 int main()
 {
+    SystemReport sys_state( 1000/* Loop delay time in ms */);
+
+while(1) {
+    printf("\n\r\n\r\n\rHEAP and STACK statistics at start:\r\n");
+    sys_state.report_state();
+    
+    printf("Powering up the BG96...\r\n");
+    BG96_PWRKEY = 1;
+    wait_ms(300);
+    BG96_RESET = 0;
+    wait_ms(5000); // wait for the modem to establish a connection
+    printf("done\n");
     print_function("\n\nmbed-os-example-cellular\n");
     print_function("\n\nBuilt: %s, %s\n", __DATE__, __TIME__);
 #ifdef MBED_CONF_NSAPI_DEFAULT_CELLULAR_PLMN
@@ -278,12 +293,26 @@ int main()
         print_function("\n\nFailure. Exiting \n\n");
     }
 
+    printf("HEAP and STACK statistics after connection:\r\n");
+    sys_state.report_state();
+    wait_ms(5000); 
 #if MBED_CONF_MBED_TRACE_ENABLE
     trace_close();
 #else
     dot_thread.terminate();
 #endif // #if MBED_CONF_MBED_TRACE_ENABLE
 
-    return 0;
+    iface->disconnect();
+    printf("Powering down the BG96...\r\n");
+    BG96_PWRKEY = 0;
+    wait_ms(1000);
+    BG96_RESET = 1;
+
+    printf("HEAP and STACK statistics after disconnect:\r\n");
+    sys_state.report_state(); 
+    wait_ms(5000); // wait for the modem to establish a connection
+
+    printf("Reconnecting...\r\n");
+}
 }
 // EOF
